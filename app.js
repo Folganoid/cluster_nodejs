@@ -3,10 +3,11 @@ const MasterApp = require ('./controllers/master.js');
 const SlaveApp = require ('./controllers/slave.js');
 
 program
-    .option('-i, --index [indexCount]', 'Node index')
-    .option('-A, --add [addRowsCount]', 'add data')
-    .option('-U, --update [updateRowsCount]', 'Update data')
-    .option('-D, --delete [deleteRowsCount]', 'Delete data');
+    .option('-i, --index [index]', 'Node index')
+    .option('-c, --count [count]', 'Node index')
+    .option('-A, --add', 'Add data')
+    .option('-U, --update', 'Update data')
+    .option('-D, --delete', 'Delete data');
 
 /**
  * SLAVE

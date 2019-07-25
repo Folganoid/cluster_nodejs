@@ -9,10 +9,70 @@ class SlaveApp {
         this.add = program.add;
         this.delete = program.delete;
         this.update = program.update;
+        this.count = program.count;
     }
 
-    action() {
+    async action() {
 
+        const Schema = mongoose.Schema;
+
+        let rowSchema = new Schema({
+            index: Number,
+            text: String,
+            time: Date,
+        });
+
+        if (this.add && this.count > 0) {
+
+            this.mongoInit();
+            const RowModel = mongoose.model('RowModel', rowSchema);
+
+            for (let i = 0; i < this.count; i++) {
+
+                const row = new RowModel({
+                    index: this.index,
+                    text: "xxx-" + i,
+                    time: new Date()
+                });
+
+                row.save((err) => {
+                    if (err) {
+                        console.log('Mongo error...')
+                    } else {
+                        console.log(i);
+                        this.mongoClose();
+                    }
+                });
+            }
+        } else if (this.delete && this.count > 0) {
+
+            this.mongoInit();
+            const that = this;
+            const RowModel = mongoose.model('RowModel', rowSchema);
+
+            RowModel
+                .find({index: 1})
+                .limit(+this.count)
+                .exec( async function(err, posts) {
+
+                         let cnt = posts.length;
+
+                         for (var post in posts) {
+
+                             await that.sleep(1000);
+
+                             let a = RowModel.findOne({ _id: posts[post].id });
+                             a.deleteOne().exec(function (err,n) {
+                                 console.log(n);
+                                 cnt--;
+                                 if (cnt <= 0) that.mongoClose();
+                             });
+                         }
+                });
+        }
+    };
+
+    mongoInit() {
         mongoose.connect(
             'mongodb://'+
             CONFIG.mongoDbLogin + ':' +
@@ -31,32 +91,15 @@ class SlaveApp {
         mongoose.connection.on('disconnected', function(){
             console.log('Mongo dicsonnected...');
         });
-
-        const Schema = mongoose.Schema;
-
-        let rowSchema = new Schema({
-            index: Number,
-            text: String,
-            time: Date,
-        });
-
-        var SomeModel = mongoose.model('SomeModel', rowSchema );
-
-        let row = new SomeModel({
-            index: 1,
-            text: "xxx",
-            time: new Date()
-        });
-
-        row.save(function (err) {
-            if (err) {
-                console.log(err);
-            }
-
-            mongoose.connection.close();
-
-        });
     };
+
+    mongoClose() {
+        mongoose.connection.close();
+    };
+
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 }
 
 module.exports = SlaveApp;
