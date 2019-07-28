@@ -22,6 +22,9 @@ class SlaveApp {
             time: Date,
         });
 
+        /**
+         * Create
+         */
         if (this.add && this.count > 0) {
 
             this.mongoInit();
@@ -35,40 +38,65 @@ class SlaveApp {
                     time: new Date()
                 });
 
-                row.save((err) => {
+                row.save( (err) => {
                     if (err) {
                         console.log('Mongo error...')
                     } else {
-                        console.log(i);
+                        console.log('+++', i);
                         this.mongoClose();
                     }
                 });
             }
+        /**
+        * DELETE
+        */
         } else if (this.delete && this.count > 0) {
 
             this.mongoInit();
-            const that = this;
             const RowModel = mongoose.model('RowModel', rowSchema);
 
-            RowModel
-                .find({index: 1})
-                .limit(+this.count)
-                .exec( async function(err, posts) {
+            var result = RowModel
+                .find({index: this.index})
+                .limit(+this.count);
 
-                         let cnt = posts.length;
+            new Promise((resolve, reject) => {
+                    result.exec( (err, posts) => {
 
-                         for (var post in posts) {
+                        if (err) {
+                            console.log(err.toString());
+                            reject(err);
+                        }
 
-                             await that.sleep(1000);
+                        resolve(posts);
+                    });
+                }).then((posts) => {
 
-                             let a = RowModel.findOne({ _id: posts[post].id });
-                             a.deleteOne().exec(function (err,n) {
-                                 console.log(n);
-                                 cnt--;
-                                 if (cnt <= 0) that.mongoClose();
-                             });
-                         }
-                });
+                    for (let i = 0 ; i < posts.length ; i++) {
+
+                        new Promise((resolve2, reject2) => {
+
+                            RowModel.findOne({_id: posts[i].id})
+                                .deleteOne()
+                                .exec((err, n) => {
+
+                                    if(err) {
+                                        console.log(err.toString());
+                                        reject2(err);
+                                    }
+
+                                    resolve2(n);
+
+                                });
+                        }).then((n) => {
+                            console.log("---", n);
+                            this.mongoClose();
+
+                        });
+                    }
+
+            });
+
+
         }
     };
 
