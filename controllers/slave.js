@@ -10,92 +10,31 @@ class SlaveApp {
         this.delete = program.delete;
         this.update = program.update;
         this.count = program.count;
-    }
 
-    async action() {
+        this.Schema = mongoose.Schema;
 
-        const Schema = mongoose.Schema;
-
-        let rowSchema = new Schema({
+        this.rowSchema = new this.Schema({
             index: Number,
             text: String,
             time: Date,
         });
+    }
+
+    action() {
 
         /**
          * Create
          */
         if (this.add && this.count > 0) {
 
-            this.mongoInit();
-            const RowModel = mongoose.model('RowModel', rowSchema);
+            this.createAction();
 
-            for (let i = 0; i < this.count; i++) {
-
-                const row = new RowModel({
-                    index: this.index,
-                    text: "xxx-" + i,
-                    time: new Date()
-                });
-
-                row.save( (err) => {
-                    if (err) {
-                        console.log('Mongo error...')
-                    } else {
-                        console.log('+++', i);
-                        this.mongoClose();
-                    }
-                });
-            }
         /**
         * DELETE
         */
         } else if (this.delete && this.count > 0) {
 
-            this.mongoInit();
-            const RowModel = mongoose.model('RowModel', rowSchema);
-
-            var result = RowModel
-                .find({index: this.index})
-                .limit(+this.count);
-
-            new Promise((resolve, reject) => {
-                    result.exec( (err, posts) => {
-
-                        if (err) {
-                            console.log(err.toString());
-                            reject(err);
-                        }
-
-                        resolve(posts);
-                    });
-                }).then((posts) => {
-
-                    for (let i = 0 ; i < posts.length ; i++) {
-
-                        new Promise((resolve2, reject2) => {
-
-                            RowModel.findOne({_id: posts[i].id})
-                                .deleteOne()
-                                .exec((err, n) => {
-
-                                    if(err) {
-                                        console.log(err.toString());
-                                        reject2(err);
-                                    }
-
-                                    resolve2(n);
-
-                                });
-                        }).then((n) => {
-                            console.log("---", n);
-                            this.mongoClose();
-
-                        });
-                    }
-
-            });
-
+            this.deleteRows();
 
         }
     };
@@ -125,9 +64,100 @@ class SlaveApp {
         mongoose.connection.close();
     };
 
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    sleep() {
+        return new Promise(resolve => setTimeout(resolve, 1000));
     }
+
+    /**
+     * create rows
+     */
+    async createAction() {
+
+        this.mongoInit();
+        const RowModel = mongoose.model('RowModel', this.rowSchema);
+
+        for (let i = 0; i < this.count; i++) {
+
+            const row = new RowModel({
+                index: this.index,
+                text: "xxx-" + i,
+                time: new Date()
+            });
+
+            await this.sleep();
+
+            row.save( (err) => {
+                if (err) {
+                    console.log('Mongo error...')
+                } else {
+
+                    console.log('+++', i);
+                    if( i >= this.count - 1) this.mongoClose();
+                }
+            });
+        }
+    }
+
+    /**
+     * Delete rows
+     */
+    deleteRows() {
+
+        this.mongoInit();
+        const RowModel = mongoose.model('RowModel', this.rowSchema);
+
+        let result = RowModel
+            .find({index: this.index})
+            .limit(+this.count);
+
+        // for sleep() in promise
+        function returnPromise(post, closeFn, close) {
+            return new Promise(async (resolve) => {
+
+                const result = await returnResult(closeFn, close);
+
+                function returnResult(closeFn, close) {
+                    RowModel.findOne({_id: post.id})
+                        .deleteOne()
+                        .exec((err, n) => {
+                            console.log("---", n);
+                            if (close) closeFn.mongoClose();
+                            return n;
+                        });
+                }
+
+                return resolve(result);
+            });
+        }
+
+        // action
+        new Promise((resolve, reject) => {
+            result.exec( (err, posts) => {
+
+                if (err) {
+                    console.log(err.toString());
+                    reject(err);
+                }
+
+                resolve(posts);
+            });
+
+        }).then(async (posts) => {
+
+            if (posts.length === 0) {
+                this.mongoClose();
+            }
+
+            for ( let i = 0; i < posts.length; i++) {
+                await this.sleep();
+                const close = (i < posts.length-1) ? false : true;
+                returnPromise(posts[i], this, close);
+            };
+
+        });
+    }
+
+
 }
 
 module.exports = SlaveApp;
