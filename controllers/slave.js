@@ -3,6 +3,10 @@ const CONFIG = require ('../config.js');
 
 class SlaveApp {
 
+    /**
+     * Constructor
+     * @param program
+     */
     constructor(program) {
 
         this.index = program.index;
@@ -20,6 +24,9 @@ class SlaveApp {
         });
     }
 
+    /**
+     * main action
+     */
     action() {
 
         /**
@@ -36,9 +43,19 @@ class SlaveApp {
 
             this.deleteRows();
 
+        /**
+         * UPDATE
+         */
+        } else if (this.update && this.count > 0) {
+
+            this.updateRows();
+
         }
     };
 
+    /**
+     * mongo connection init
+     */
     mongoInit() {
         mongoose.connect(
             'mongodb://'+
@@ -60,10 +77,17 @@ class SlaveApp {
         });
     };
 
+    /**
+     * mongo connection close
+     */
     mongoClose() {
         mongoose.connection.close();
     };
 
+    /**
+     * sync sleep
+     * @returns {Promise<any>}
+     */
     sleep() {
         return new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -139,6 +163,64 @@ class SlaveApp {
                     reject(err);
                 }
 
+                resolve(posts);
+            });
+
+        }).then(async (posts) => {
+
+            if (posts.length === 0) {
+                this.mongoClose();
+            }
+
+            for ( let i = 0; i < posts.length; i++) {
+                await this.sleep();
+                const close = (i < posts.length-1) ? false : true;
+                returnPromise(posts[i], this, close);
+            };
+
+        });
+    }
+
+    /**
+     * update rows
+     */
+    updateRows() {
+
+        this.mongoInit();
+        const RowModel = mongoose.model('RowModel', this.rowSchema);
+
+        let result = RowModel
+            .find({index: this.index})
+            .limit(+this.count);
+
+        // for sleep() in promise
+        function returnPromise(post, closeFn, close) {
+            return new Promise(async (resolve) => {
+
+                const result = await returnResult(closeFn, close);
+
+                function returnResult(closeFn, close) {
+                    RowModel.updateOne({_id: post.id}, {text: "uuu-X", time: new Date()},)
+                        .exec((err, n) => {
+                            console.log("***", n);
+                            if (close) closeFn.mongoClose();
+                            return n;
+                        });
+                }
+
+                return resolve(result);
+            });
+        }
+
+        // action
+        new Promise((resolve, reject) => {
+            result.exec( (err, posts) => {
+
+                if (err) {
+                    console.log(err.toString());
+                    reject(err);
+                }
+                console.log(posts);
                 resolve(posts);
             });
 
