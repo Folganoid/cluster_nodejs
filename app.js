@@ -1,6 +1,7 @@
 const program = require('commander');
 const MasterApp = require ('./controllers/master.js');
 const SlaveApp = require ('./controllers/slave.js');
+const DirectorApp = require('./controllers/director');
 
 program
     .option('-i, --index [index]', 'Node index')
@@ -26,7 +27,19 @@ program
     .command('master')
     .action(() => {
         let master = new MasterApp(program);
-        master.action()
+        master.action();
     });
+
+/**
+ * DIRECTOR
+ */
+program
+    .command('director')
+    .action(() => {
+        let director = new DirectorApp(program);
+        director.action();
+    });
+
+
 
 program.parse(process.argv);
