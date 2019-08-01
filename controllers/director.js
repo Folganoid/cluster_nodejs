@@ -5,34 +5,40 @@ class DirectorApp {
     constructor(program) {
 
         this.program = program;
-
+        this.count = program.count;
+        this.add = program.add;
+        this.delete = program.delete;
+        this.update = program.update;
     }
 
     action() {
 
-        amqp.connect('amqp://guest:guest@localhost:5672', function(error0, connection) {
+        amqp.connect('amqp://guest:guest@localhost:5672', (error0, connection) => {
             if (error0) {
                 throw error0;
             }
-            connection.createChannel(function(error1, channel) {
+            connection.createChannel((error1, channel) => {
                 if (error1) {
                     throw error1;
                 }
                 var queue = 'action';
-                var msg = '{"action": "add", "count": 100}';
+                var action = (this.add) ? "add" : (this.delete) ? "delete" : "update";
+                var msg = '{"action": "'+ action +'", "count": 100}';
 
                 channel.assertQueue(queue, {
                     durable: false
                 });
 
-                channel.sendToQueue(queue, Buffer.from(msg));
-                console.log(" [x] Sent %s", msg);
+                for(let i = 0; i < this.count; i++) {
+                    channel.sendToQueue(queue, Buffer.from(msg));
+                    console.log(" ["+ i +"] Sent %s", msg);
+                }
             });
 
             setTimeout(function() {
                 connection.close();
                 process.exit(0)
-            }, 5000);
+            }, 1000);
 
         });
     }
