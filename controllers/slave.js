@@ -59,8 +59,8 @@ class SlaveApp {
     mongoInit() {
         mongoose.connect(
             'mongodb://'+
-            CONFIG.mongoDbLogin + ':' +
-            CONFIG.mongoDbPassword + '@'+
+            //CONFIG.mongoDbLogin + ':' +
+            //CONFIG.mongoDbPassword + '@'+
             CONFIG.mongoDbHost + ':' +
             CONFIG.mongoDbPort + '/'+
             CONFIG.mongoDbBase, {useNewUrlParser: true}
