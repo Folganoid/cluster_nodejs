@@ -127,12 +127,13 @@ class SlaveApp {
      */
     deleteRows() {
 
+        let countSuccessOperations = +this.count;
+
         this.mongoInit();
         const RowModel = mongoose.model('RowModel', this.rowSchema);
 
-        let result = RowModel
-            .find({})
-            .limit(+this.count);
+        let deletionProcessMain = deletionProcess.bind(this);
+        deletionProcessMain(+this.count);
 
         // for sleep() in promise
         function returnPromise(post, closeFn, close) {
@@ -145,7 +146,10 @@ class SlaveApp {
                         .deleteOne()
                         .exec((err, n) => {
                             console.log("---", n);
-                            if (close) closeFn.mongoClose();
+
+                            if(n.n > 0 && n.ok === 1 && n.deletedCount > 0) countSuccessOperations--;
+                            if (close && countSuccessOperations === 0) closeFn.mongoClose();
+
                             return n;
                         });
                 }
@@ -154,31 +158,42 @@ class SlaveApp {
             });
         }
 
-        // action
-        new Promise((resolve, reject) => {
-            result.exec( (err, posts) => {
+        function deletionProcess(count) {
+            // action
+            let result = RowModel
+                .find({})
+                .limit(+count);
+            console.log("DDDDD", count);
+            new Promise((resolve, reject) => {
+                result.exec((err, posts) => {
+                    if (err) {
+                        console.log(err.toString());
+                        reject(err);
+                    }
+                    resolve(posts);
+                });
 
-                if (err) {
-                    console.log(err.toString());
-                    reject(err);
+            }).then(async (posts) => {
+
+                if (posts.length === 0) {
+                    this.mongoClose();
+                    return;
                 }
 
-                resolve(posts);
-            });
+                for (let i = 0; i < posts.length; i++) {
+                    await this.sleep();
+                    const close = (i < posts.length - 1) ? false : true;
+                    await returnPromise(posts[i], this, close);
+                };
 
-        }).then(async (posts) => {
-
-            if (posts.length === 0) {
-                this.mongoClose();
-            }
-
-            for ( let i = 0; i < posts.length; i++) {
+                // if passed
                 await this.sleep();
-                const close = (i < posts.length-1) ? false : true;
-                returnPromise(posts[i], this, close);
-            };
+                if (countSuccessOperations > 0) {
+                    deletionProcessMain(countSuccessOperations);
+                }
 
-        });
+            });
+        }
     }
 
     /**
