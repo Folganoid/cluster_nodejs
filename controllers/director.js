@@ -1,20 +1,19 @@
 var amqp = require('amqplib/callback_api');
 var amqpConn = null;
+const CONFIG = require ('../config.js');
 
 class DirectorApp {
 
     constructor(program) {
 
         this.program = program;
-        this.count = program.count;
-        this.add = program.add;
-        this.delete = program.delete;
-        this.update = program.update;
+        this.count = (program.count) ? program.count : 0;
+        this.directorCount = (program.directorCount) ? program.directorCount : 0;
     }
 
     action() {
 
-            amqp.connect('amqp://guest:guest@localhost:5672' + "?heartbeat=60", (err, conn) => {
+            amqp.connect(CONFIG.rabbitInit, (err, conn) => {
                 if (err) {
                     console.error("[AMQP]", err.message);
                 }
@@ -37,14 +36,14 @@ class DirectorApp {
                     });
 
                     var queue = 'action';
-                    var action = (this.add) ? "add" : (this.delete) ? "delete" : "update";
-                    var msg = '{"action": "'+ action +'", "count": 100}';
+                    var action = (this.program.add) ? "add" : (this.program.delete) ? "delete" : "update";
+                    var msg = '{"action": "'+ action +'", "count": '+ this.count +'}';
 
                     ch.assertQueue(queue, {
                         durable: false
                     });
 
-                    for(let i = 0; i < this.count; i++) {
+                    for(let i = 0; i < this.directorCount; i++) {
                         ch.sendToQueue(queue, Buffer.from(msg));
                         console.log(" ["+ i +"] Sent %s", msg);
                     }

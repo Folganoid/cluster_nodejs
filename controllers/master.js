@@ -1,20 +1,23 @@
-var amqp = require('amqplib/callback_api');
+const amqp = require('amqplib/callback_api');
+const execSync = require('child_process').execSync;
+const CONFIG = require ('../config.js');
 
 class MasterApp {
 
     constructor(program) {
         this.program = program;
+        this.index = program.index;
     }
 
     action() {
 
         console.log('master');
 
-        amqp.connect('amqp://guest:guest@localhost:5672', (error0, connection) => {
+        amqp.connect(CONFIG.rabbitInit, (error0, connection) => {
             if (error0) {
                 throw error0;
             }
-            connection.createChannel((error1, channel) => {
+            connection.createChannel(async (error1, channel) => {
                 if (error1) {
                     throw error1;
                 }
@@ -35,14 +38,13 @@ class MasterApp {
                 }, {
                     noAck: false
                 });
+
             });
         });
 
     };
 
     /**
-     * todo shell command for slave
-     *
      * @param msg
      * @returns {Promise<any>}
      */
@@ -50,6 +52,12 @@ class MasterApp {
         return new Promise((resolve) => {
 
             console.log(" [x] Received %s", msg);
+
+            msg = JSON.parse(msg);
+            msg.action = (msg.action == "add") ? "A" : (msg.action == 'delete') ? "D" : "U";
+
+            const execProcess = execSync('node app.js slave -c '+ msg.count +' -i '+ this.index +' -' + msg.action, {stdio: 'inherit'});
+            console.log(execProcess);
 
             setTimeout(resolve, 1000)
         });

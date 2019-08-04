@@ -9,7 +9,7 @@ class SlaveApp {
      */
     constructor(program) {
 
-        this.index = program.index;
+        this.index = (program.index) ? program.index : 0;
         this.add = program.add;
         this.delete = program.delete;
         this.update = program.update;
@@ -131,7 +131,7 @@ class SlaveApp {
         const RowModel = mongoose.model('RowModel', this.rowSchema);
 
         let result = RowModel
-            .find({index: this.index})
+            .find({})
             .limit(+this.count);
 
         // for sleep() in promise
@@ -190,7 +190,7 @@ class SlaveApp {
         const RowModel = mongoose.model('RowModel', this.rowSchema);
 
         let result = RowModel
-            .find({index: this.index})
+            .find({})
             .limit(+this.count);
 
         // for sleep() in promise

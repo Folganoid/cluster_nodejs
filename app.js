@@ -5,7 +5,8 @@ const DirectorApp = require('./controllers/director');
 
 program
     .option('-i, --index [index]', 'Node index')
-    .option('-c, --count [count]', 'Node index')
+    .option('-c, --count [count]', 'row count')
+    .option('-d, --directorCount [directorCount]', 'director count')
     .option('-A, --add', 'Add data')
     .option('-U, --update', 'Update data')
     .option('-D, --delete', 'Delete data');
