@@ -5,7 +5,7 @@ node app.js director -c 10 -d 10 -A
 
 ### master 
 
-node app.js master -c 10 -A
+node app.js master -i 1
 
 ### slave
 

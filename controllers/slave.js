@@ -130,7 +130,6 @@ class SlaveApp {
         let countSuccessOperations = +this.count;
 
         this.mongoInit();
-        const RowModel = mongoose.model('RowModel', this.rowSchema);
 
         let deletionProcessMain = deletionProcess.bind(this);
         deletionProcessMain(+this.count);
@@ -201,12 +200,13 @@ class SlaveApp {
      */
     updateRows() {
 
+        let countSuccessOperations = +this.count;
+
         this.mongoInit();
         const RowModel = mongoose.model('RowModel', this.rowSchema);
 
-        let result = RowModel
-            .find({})
-            .limit(+this.count);
+        let updateProcessMain = updateProcess.bind(this);
+        updateProcessMain(+this.count);
 
         // for sleep() in promise
         function returnPromise(post, closeFn, close) {
@@ -214,44 +214,58 @@ class SlaveApp {
 
                 const result = await returnResult(closeFn, close);
 
-                function returnResult(closeFn, close) {
-                    RowModel.updateOne({_id: post.id}, {text: "uuu-X", time: new Date()},)
-                        .exec((err, n) => {
-                            console.log("***", n);
-                            if (close) closeFn.mongoClose();
-                            return n;
-                        });
-                }
 
-                return resolve(result);
+                    function returnResult(closeFn, close) {
+                        RowModel.updateOne({_id: post.id}, {text: "uuu-X", time: new Date()},)
+                            .exec((err, n) => {
+                                console.log("***", n);
+                                if(n.n > 0 && n.ok === 1 && n.nModified > 0) countSuccessOperations--;
+                                if (close && countSuccessOperations === 0) closeFn.mongoClose();
+                                return n;
+                            });
+                    }
+
+                    return resolve(result);
+
             });
         }
 
-        // action
-        new Promise((resolve, reject) => {
-            result.exec( (err, posts) => {
+        function updateProcess(count) {
+            // action
+            let result = RowModel
+                .find({})
+                .limit(+count);
+            console.log("UUUUU", count);
+            new Promise((resolve, reject) => {
+                result.exec((err, posts) => {
+                    if (err) {
+                        console.log(err.toString());
+                        reject(err);
+                    }
+                    resolve(posts);
+                });
 
-                if (err) {
-                    console.log(err.toString());
-                    reject(err);
+            }).then(async (posts) => {
+
+                if (posts.length === 0) {
+                    this.mongoClose();
+                    return;
                 }
-                console.log(posts);
-                resolve(posts);
-            });
 
-        }).then(async (posts) => {
+                for (let i = 0; i < posts.length; i++) {
+                    await this.sleep();
+                    const close = (i < posts.length - 1) ? false : true;
+                    await returnPromise(posts[i], this, close);
+                };
 
-            if (posts.length === 0) {
-                this.mongoClose();
-            }
-
-            for ( let i = 0; i < posts.length; i++) {
+                // if passed
                 await this.sleep();
-                const close = (i < posts.length-1) ? false : true;
-                returnPromise(posts[i], this, close);
-            };
+                if (countSuccessOperations > 0) {
+                    updateProcessMain(countSuccessOperations);
+                }
 
-        });
+            });
+        }
     }
 
 
