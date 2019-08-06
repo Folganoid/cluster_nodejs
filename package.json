@@ -12,6 +12,7 @@
     "amqplib": "^0.5.5",
     "child_process": "^1.0.2",
     "commander": "^2.20.0",
-    "mongoose": "^5.6.6"
+    "mongoose": "^5.6.6",
+    "simple-node-logger": "^18.12.23"
   }
 }
