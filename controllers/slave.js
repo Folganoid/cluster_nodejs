@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const CONFIG = require ('../config.js');
 const Logger = require ('../services/logger');
+const clusterRow = require('../models/clusterRow');
+const processLog = require('../services/processLog');
 
 class SlaveApp {
 
@@ -18,11 +20,7 @@ class SlaveApp {
 
         this.Schema = mongoose.Schema;
 
-        this.rowSchema = new this.Schema({
-            index: Number,
-            text: String,
-            time: Date,
-        });
+        this.rowSchema = new this.Schema(clusterRow);
 
         this.logger = new Logger('slave', this.index);
         this.logger.info('  [S] Slave started');
@@ -32,7 +30,10 @@ class SlaveApp {
     /**
      * main action
      */
-    action() {
+    async action() {
+
+        let procLog = new processLog();
+        procLog.createRow(this.index, 'slave');
 
         /**
          * Create
@@ -40,7 +41,7 @@ class SlaveApp {
         if (this.add && this.count > 0) {
 
             this.logger.info('  [S] Action create started');
-            this.createAction();
+            await this.createAction();
 
         /**
         * DELETE
@@ -48,7 +49,7 @@ class SlaveApp {
         } else if (this.delete && this.count > 0) {
 
             this.logger.info('  [S] Action delete started');
-            this.deleteRows();
+            await this.deleteRows();
 
         /**
          * UPDATE
@@ -56,9 +57,11 @@ class SlaveApp {
         } else if (this.update && this.count > 0) {
 
             this.logger.info('  [S] Action update started');
-            this.updateRows();
+            await this.updateRows();
 
         }
+
+        procLog.deleteRow();
     };
 
     /**
