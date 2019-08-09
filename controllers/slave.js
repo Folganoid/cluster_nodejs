@@ -1,8 +1,5 @@
-const mongoose = require('mongoose');
-const CONFIG = require ('../config.js');
-const Logger = require ('../services/logger');
-const clusterRow = require('../models/clusterRow');
 const processLog = require('../services/processLog');
+const System = require('../services/system');
 
 class SlaveApp {
 
@@ -18,13 +15,8 @@ class SlaveApp {
         this.update = program.update;
         this.count = program.count;
 
-        this.Schema = mongoose.Schema;
-
-        this.rowSchema = new this.Schema(clusterRow);
-
-        this.logger = new Logger('slave', this.index);
-        this.logger.info('  [S] Slave started');
-
+        this.sys = new System('slave', this.index);
+        this.sys.logger.info('  [S] Slave started');
         this.procLog = new processLog(this.index, 'slave');
 
     }
@@ -41,7 +33,7 @@ class SlaveApp {
          */
         if (this.add && this.count > 0) {
 
-            this.logger.info('  [S] Action create started');
+            this.sys.logger.info('  [S] Action create started');
             this.createAction();
 
         /**
@@ -49,7 +41,7 @@ class SlaveApp {
         */
         } else if (this.delete && this.count > 0) {
 
-            this.logger.info('  [S] Action delete started');
+            this.sys.logger.info('  [S] Action delete started');
             this.deleteRows();
 
         /**
@@ -57,7 +49,7 @@ class SlaveApp {
          */
         } else if (this.update && this.count > 0) {
 
-            this.logger.info('  [S] Action update started');
+            this.sys.logger.info('  [S] Action update started');
             this.updateRows();
 
         }
@@ -65,73 +57,30 @@ class SlaveApp {
     };
 
     /**
-     * mongo connection init
-     */
-    mongoInit() {
-
-        this.logger.info('  [S] MongoDB connection started');
-        mongoose.connect(
-            'mongodb://'+
-            //CONFIG.mongoDbLogin + ':' +
-            //CONFIG.mongoDbPassword + '@'+
-            CONFIG.mongoDbHost + ':' +
-            CONFIG.mongoDbPort + '/'+
-            CONFIG.mongoDbBase, {useNewUrlParser: true}
-        );
-
-        mongoose.connection.on('connected', () => {
-            this.logger.info('  [S] Connect to mongoDB succesfully');
-        });
-        mongoose.connection.on('error', () => {
-            this.logger.err('  [S] Can\'t connect to mongo');
-        });
-        mongoose.connection.on('disconnected', () => {
-            this.logger.info('  [S] Mongo dicsonnected');
-        });
-    };
-
-    /**
-     * mongo connection close
-     */
-    mongoClose() {
-        mongoose.connection.close();
-    };
-
-    /**
-     * sync sleep
-     * @returns {Promise<any>}
-     */
-    sleep() {
-        return new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    /**
      * create rows
      */
     async createAction() {
 
-        this.mongoInit();
-        const RowModel = mongoose.model('RowModel', this.rowSchema);
-
         for (let i = 0; i < this.count; i++) {
 
-            const row = new RowModel({
+            const row = new this.sys.RowModel({
                 index: this.index,
                 text: "xxx-" + i,
                 time: new Date()
             });
 
-            await this.sleep();
+            await this.sys.sleep();
+            this.procLog.changePing();
 
             row.save( async (err) => {
                 if (err) {
-                    this.logger.err('  [S] Mongo error...' + err.toString());
+                    this.sys.logger.err('  [S] Mongo error...' + err.toString());
                 } else {
 
-                    this.logger.info('  [S] Create row ' + i);
+                    this.sys.logger.info('  [S] Create row ' + i);
                     if( i >= this.count - 1) {
                         await this.procLog.deleteRow();
-                        this.mongoClose();
+                        this.sys.mongoClose();
                     }
                 }
             });
@@ -144,10 +93,6 @@ class SlaveApp {
     deleteRows() {
 
         let countSuccessOperations = +this.count;
-
-        this.mongoInit();
-        const RowModel = mongoose.model('RowModel', this.rowSchema);
-
         let deletionProcessMain = deletionProcess.bind(this);
         deletionProcessMain(+this.count);
 
@@ -160,10 +105,10 @@ class SlaveApp {
                 const result = await returnResult.call(this, closeFn, close);
 
                 function returnResult(closeFn, close) {
-                    RowModel.findOne({_id: post.id})
+                    this.sys.RowModel.findOne({_id: post.id})
                         .deleteOne()
                         .exec( async (err, n) => {
-                            this.logger.info('  [S] Delete exec response from mongo: ' + JSON.stringify(n));
+                            this.sys.logger.info('  [S] Delete exec response from mongo: ' + JSON.stringify(n));
 
                             if(n.n > 0 && n.ok === 1 && n.deletedCount > 0) countSuccessOperations--;
                             if (close && countSuccessOperations === 0) {
@@ -185,15 +130,15 @@ class SlaveApp {
          */
         function deletionProcess(count) {
             // action
-            let result = RowModel
+            let result = this.sys.RowModel
                 .find({})
                 .limit(+count);
 
-            this.logger.info('  [S] Try delete ' + count + ' rows');
+            this.sys.logger.info('  [S] Try delete ' + count + ' rows');
             new Promise((resolve, reject) => {
                 result.exec((err, posts) => {
                     if (err) {
-                        this.logger.err('  [S] Delete error: ' + err.toString());
+                        this.sys.logger.err('  [S] Delete error: ' + err.toString());
                         reject(err);
                     }
                     resolve(posts);
@@ -202,19 +147,21 @@ class SlaveApp {
             }).then(async (posts) => {
 
                 if (posts.length === 0) {
-                    this.procLog.deleteRow();
-                    this.mongoClose();
+                    await this.procLog.deleteRow();
+                    await this.sys.sleep();
+                    this.sys.mongoClose();
                     return;
                 }
 
                 for (let i = 0; i < posts.length; i++) {
-                    await this.sleep();
+                    await this.sys.sleep();
                     const close = (i < posts.length - 1) ? false : true;
-                    await returnPromise.call(this, posts[i], this, close);
+                    await returnPromise.call(this, posts[i], this.sys, close);
+                    this.procLog.changePing();
                 };
 
                 // if passed
-                await this.sleep();
+                await this.sys.sleep();
                 if (countSuccessOperations > 0) {
                     deletionProcessMain(countSuccessOperations);
                 }
@@ -229,10 +176,6 @@ class SlaveApp {
     updateRows() {
 
         let countSuccessOperations = +this.count;
-
-        this.mongoInit();
-        const RowModel = mongoose.model('RowModel', this.rowSchema);
-
         let updateProcessMain = updateProcess.bind(this);
         updateProcessMain(+this.count);
 
@@ -251,9 +194,9 @@ class SlaveApp {
 
 
                     function returnResult(closeFn, close) {
-                        RowModel.updateOne({_id: post.id}, {text: "uuu-X", time: new Date()},)
+                        this.sys.RowModel.updateOne({_id: post.id}, {text: "uuu-X", time: new Date()},)
                             .exec(async (err, n) => {
-                                this.logger.info('  [S] Update exec response from mongo: ' + JSON.stringify(n));
+                                this.sys.logger.info('  [S] Update exec response from mongo: ' + JSON.stringify(n));
                                 if(n.n > 0 && n.ok === 1 && n.nModified > 0) countSuccessOperations--;
                                 if (close && countSuccessOperations === 0) {
                                     await this.procLog.deleteRow();
@@ -274,14 +217,14 @@ class SlaveApp {
          */
         function updateProcess(count) {
             // action
-            let result = RowModel
+            let result = this.sys.RowModel
                 .find({})
                 .limit(+count);
-            this.logger.info('  [S] Try update ' + count + ' rows');
+            this.sys.logger.info('  [S] Try update ' + count + ' rows');
             new Promise((resolve, reject) => {
                 result.exec((err, posts) => {
                     if (err) {
-                        this.logger.err('  [S] Update error: ' + err.toString());
+                        this.sys.logger.err('  [S] Update error: ' + err.toString());
                         reject(err);
                     }
                     resolve(posts);
@@ -290,19 +233,21 @@ class SlaveApp {
             }).then(async (posts) => {
 
                 if (posts.length === 0) {
-                    await this.procLog.deleteRow();
-                    this.mongoClose();
+                    this.procLog.deleteRow();
+                    await this.sys.sleep();
+                    this.sys.mongoClose();
                     return;
                 }
 
                 for (let i = 0; i < posts.length; i++) {
-                    await this.sleep();
+                    await this.sys.sleep();
                     const close = (i < posts.length - 1) ? false : true;
-                    await returnPromise.call(this, posts[i], this, close);
+                    await returnPromise.call(this, posts[i], this.sys, close);
+                    this.procLog.changePing();
                 };
 
                 // if passed
-                await this.sleep();
+                await this.sys.sleep();
                 if (countSuccessOperations > 0) {
                     updateProcessMain(countSuccessOperations);
                 }

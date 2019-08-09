@@ -21,10 +21,12 @@ class ProcessLog {
     createRow() {
 
         const processModel = mongoose.model('processModel', this.processSchema);
+        const now = new Date();
 
         const row = new processModel({
             index: this.index,
-            startedAt: new Date(),
+            startedAt: now,
+            ping: now,
             type: this.type
         });
 
@@ -33,10 +35,25 @@ class ProcessLog {
             } else {
                 this.id = data._id;
                 this.logger.info("CREATE PROCESS...");
+
             }
         });
 
     }
+
+
+    changePing() {
+
+        const processModel = mongoose.model('processModel', this.processSchema);
+        if (!this.id) return;
+
+
+        processModel.updateOne({_id: this.id}, {ping: new Date()})
+            .exec((err, n) => {
+
+            });
+    };
+
 
     /**
      * delete process
@@ -50,7 +67,8 @@ class ProcessLog {
         processModel.findOne({_id: this.id})
             .deleteOne()
             .exec((err, n) => {
-                this.logger.info("DELETE PROCESS...");
+                this.logger.info("DELETE PROCESS...", n);
+                this.id = undefined;
             });
     }
 }

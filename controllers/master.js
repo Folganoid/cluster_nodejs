@@ -8,21 +8,33 @@ class MasterApp {
     constructor(program) {
         this.program = program;
         this.index = program.index;
-
-        this.logger = new Logger('master', this.index);
-        this.logger.info(' [M] Master started');
     }
 
     action() {
 
+        this.logger = new Logger('master', this.index);
+        this.logger.info(' [M] Master started');
+
         amqp.connect(CONFIG.rabbitInit, (error0, connection) => {
             if (error0) {
                 this.logger.err(' [M] Can\'t connect to rabbit: ' + error0.toString());
-                throw error0;
+                return setTimeout(() => {this.action()}, 5000);
             }
+            connection.on("error", (err) => {
+                if (err.message !== "Connection closing") {
+                    this.logger.err('[D] Can\'t connect to rabbit: ' + err.toString());
+                }
+
+            });
+            connection.on("close", () => {
+                this.logger.warn("[D] AMQP reconnecting");
+                return setTimeout(() => {this.action()}, 5000);
+            });
+            this.logger.info('[D] Rabbit connected');
+
             connection.createChannel(async (error1, channel) => {
                 if (error1) {
-                    this.logger.err(' [M] Can\'t ccreate channel to rabbit: ' + error1.toString());
+                    this.logger.err(' [M] Can\'t create channel to rabbit: ' + error1.toString());
                     throw error1;
                 }
 
@@ -34,14 +46,19 @@ class MasterApp {
                 });
 
                 this.logger.info(" [M] Connected to rabbit and waiting... " +  queue);
-                channel.consume(queue, async(msg) => {
 
-                    await this.startCommand(msg.content.toString());
-                    channel.ack(msg);
+                try {
+                    channel.consume(queue, async (msg) => {
 
-                }, {
-                    noAck: false
-                });
+                        await this.startCommand.call(this, msg.content.toString());
+                        if (channel) channel.ack(msg);
+
+                    }, {
+                        noAck: false
+                    });
+                } catch (e) {
+                    this.logger.err( '[M] Exec command error: ' + e.message);
+                }
 
             });
         });
@@ -53,17 +70,20 @@ class MasterApp {
      * @returns {Promise<any>}
      */
     startCommand(msg) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
 
             this.logger.info(" [M] Received " + JSON.stringify(msg));
 
             msg = JSON.parse(msg);
             msg.action = (msg.action == "add") ? "A" : (msg.action == 'delete') ? "D" : "U";
 
-            const execProcess = execSync('node app.js slave -c '+ msg.count +' -i '+ this.index +' -' + msg.action, {stdio: 'inherit'});
-            this.logger.info(" [M] Exec response from slave: " + execProcess);
-
-            setTimeout(resolve, 1000)
+            try {
+                const execProcess = execSync('node app.js slave -c ' + msg.count + ' -i ' + this.index + ' -' + msg.action, {stdio: 'inherit'});
+                this.logger.info(" [M] Exec response from slave: " + execProcess);
+                setTimeout(resolve, 1000)
+            } catch (e) {
+                reject(e.message);
+            }
         });
     }
 
