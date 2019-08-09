@@ -25,15 +25,16 @@ class SlaveApp {
         this.logger = new Logger('slave', this.index);
         this.logger.info('  [S] Slave started');
 
+        this.procLog = new processLog(this.index, 'slave');
+
     }
 
     /**
      * main action
      */
-    async action() {
+    action() {
 
-        let procLog = new processLog();
-        procLog.createRow(this.index, 'slave');
+        this.procLog.createRow();
 
         /**
          * Create
@@ -41,7 +42,7 @@ class SlaveApp {
         if (this.add && this.count > 0) {
 
             this.logger.info('  [S] Action create started');
-            await this.createAction();
+            this.createAction();
 
         /**
         * DELETE
@@ -49,7 +50,7 @@ class SlaveApp {
         } else if (this.delete && this.count > 0) {
 
             this.logger.info('  [S] Action delete started');
-            await this.deleteRows();
+            this.deleteRows();
 
         /**
          * UPDATE
@@ -57,11 +58,10 @@ class SlaveApp {
         } else if (this.update && this.count > 0) {
 
             this.logger.info('  [S] Action update started');
-            await this.updateRows();
+            this.updateRows();
 
         }
 
-        procLog.deleteRow();
     };
 
     /**
@@ -123,13 +123,16 @@ class SlaveApp {
 
             await this.sleep();
 
-            row.save( (err) => {
+            row.save( async (err) => {
                 if (err) {
                     this.logger.err('  [S] Mongo error...' + err.toString());
                 } else {
 
                     this.logger.info('  [S] Create row ' + i);
-                    if( i >= this.count - 1) this.mongoClose();
+                    if( i >= this.count - 1) {
+                        await this.procLog.deleteRow();
+                        this.mongoClose();
+                    }
                 }
             });
         }
@@ -159,11 +162,14 @@ class SlaveApp {
                 function returnResult(closeFn, close) {
                     RowModel.findOne({_id: post.id})
                         .deleteOne()
-                        .exec((err, n) => {
+                        .exec( async (err, n) => {
                             this.logger.info('  [S] Delete exec response from mongo: ' + JSON.stringify(n));
 
                             if(n.n > 0 && n.ok === 1 && n.deletedCount > 0) countSuccessOperations--;
-                            if (close && countSuccessOperations === 0) closeFn.mongoClose();
+                            if (close && countSuccessOperations === 0) {
+                                await this.procLog.deleteRow();
+                                closeFn.mongoClose();
+                            }
 
                             return n;
                         });
@@ -196,6 +202,7 @@ class SlaveApp {
             }).then(async (posts) => {
 
                 if (posts.length === 0) {
+                    this.procLog.deleteRow();
                     this.mongoClose();
                     return;
                 }
@@ -245,10 +252,13 @@ class SlaveApp {
 
                     function returnResult(closeFn, close) {
                         RowModel.updateOne({_id: post.id}, {text: "uuu-X", time: new Date()},)
-                            .exec((err, n) => {
+                            .exec(async (err, n) => {
                                 this.logger.info('  [S] Update exec response from mongo: ' + JSON.stringify(n));
                                 if(n.n > 0 && n.ok === 1 && n.nModified > 0) countSuccessOperations--;
-                                if (close && countSuccessOperations === 0) closeFn.mongoClose();
+                                if (close && countSuccessOperations === 0) {
+                                    await this.procLog.deleteRow();
+                                    closeFn.mongoClose();
+                                }
                                 return n;
                             });
                     }
@@ -280,6 +290,7 @@ class SlaveApp {
             }).then(async (posts) => {
 
                 if (posts.length === 0) {
+                    await this.procLog.deleteRow();
                     this.mongoClose();
                     return;
                 }

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const processRow = require('../models/processRow');
-const CONFIG = require ('../config.js');
 const Logger = require ('../services/logger');
+
 
 class ProcessLog {
 
@@ -15,6 +15,9 @@ class ProcessLog {
         this.logger = new Logger('slave', this.index);
     }
 
+    /**
+     * create process
+     */
     createRow() {
 
         const processModel = mongoose.model('processModel', this.processSchema);
@@ -29,56 +32,27 @@ class ProcessLog {
             if (err) {
             } else {
                 this.id = data._id;
-                console.log(this.id);
+                this.logger.info("CREATE PROCESS...");
             }
         });
 
     }
 
+    /**
+     * delete process
+     */
     deleteRow() {
 
         const processModel = mongoose.model('processModel', this.processSchema);
 
+        console.log("DDDD", this.id);
+
         processModel.findOne({_id: this.id})
             .deleteOne()
             .exec((err, n) => {
-                console.log(n);
+                this.logger.info("DELETE PROCESS...");
             });
     }
-
-    /**
-     * mongo connection init
-     */
-    mongoInit() {
-
-        this.logger.info('  [S] MongoDB connection started');
-        mongoose.connect(
-            'mongodb://'+
-            //CONFIG.mongoDbLogin + ':' +
-            //CONFIG.mongoDbPassword + '@'+
-            CONFIG.mongoDbHost + ':' +
-            CONFIG.mongoDbPort + '/'+
-            CONFIG.mongoDbBase, {useNewUrlParser: true}
-        );
-
-        mongoose.connection.on('connected', () => {
-            this.logger.info('  [S] Connect to mongoDB succesfully');
-        });
-        mongoose.connection.on('error', () => {
-            this.logger.err('  [S] Can\'t connect to mongo');
-        });
-        mongoose.connection.on('disconnected', () => {
-            this.logger.info('  [S] Mongo dicsonnected');
-        });
-    };
-
-    /**
-     * mongo connection close
-     */
-    mongoClose() {
-        mongoose.connection.close();
-    };
-
 }
 
 module.exports = ProcessLog;
