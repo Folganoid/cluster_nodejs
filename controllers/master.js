@@ -18,7 +18,9 @@ class MasterApp {
         amqp.connect(CONFIG.rabbitInit, (error0, connection) => {
             if (error0) {
                 this.logger.err(' [M] Can\'t connect to rabbit: ' + error0.toString());
-                return setTimeout(() => {this.action()}, 5000);
+                return setTimeout(() => {
+                    this.action()
+                }, 5000);
             }
             connection.on("error", (err) => {
                 if (err.message !== "Connection closing") {
@@ -28,10 +30,18 @@ class MasterApp {
             });
             connection.on("close", () => {
                 this.logger.warn("[D] AMQP reconnecting");
-                return setTimeout(() => {this.action()}, 5000);
+                return setTimeout(() => {
+                    this.action()
+                }, 5000);
             });
             this.logger.info('[D] Rabbit connected');
 
+            this.startConsumer(connection);
+
+        })
+    }
+
+    startConsumer(connection) {
             connection.createChannel(async (error1, channel) => {
                 if (error1) {
                     this.logger.err(' [M] Can\'t create channel to rabbit: ' + error1.toString());
@@ -61,8 +71,6 @@ class MasterApp {
                 }
 
             });
-        });
-
     };
 
     /**
