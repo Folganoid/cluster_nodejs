@@ -1,7 +1,8 @@
 const program = require('commander');
 const MasterApp = require ('./controllers/master.js');
 const SlaveApp = require ('./controllers/slave.js');
-const DirectorApp = require('./controllers/director');
+const DirectorApp = require('./controllers/director.js');
+const DirectorAApp = require('./controllers/directorA.js');
 
 program
     .option('-i, --index [index]', 'Node index')
@@ -40,6 +41,17 @@ program
         let director = new DirectorApp(program);
         director.action();
     });
+
+/**
+ * DIRECTORAUTO
+ */
+program
+    .command('directorA')
+    .action(() => {
+        let directorA = new DirectorAApp(program);
+        directorA.action();
+    });
+
 
 
 

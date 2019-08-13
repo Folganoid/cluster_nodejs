@@ -12,7 +12,7 @@ class DirectorApp {
         this.index = (program.index) ? program.index : 1;
         this.directorCount = (program.directorCount) ? program.directorCount : 0;
 
-        this.logger = new Logger('master', this.index);
+        this.logger = new Logger('director', this.index);
         this.logger.info('[D] Director started');
     }
 

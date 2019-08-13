@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const CONFIG = require ('../config.js');
 const Logger = require ('../services/logger');
 const clusterRow = require('../models/clusterRow');
+const commandRow = require('../models/commandRow');
 
 class System {
 
@@ -15,6 +16,9 @@ class System {
         this.Schema = this.mongoDB.Schema;
         this.rowSchema = new this.Schema(clusterRow);
         this.RowModel = this.mongoDB.model('RowModel', this.rowSchema);
+
+        this.commandSchema = new this.Schema(commandRow);
+        this.CommandModel = this.mongoDB.model('CommandModel', this.commandSchema);
     }
 
 
@@ -22,8 +26,8 @@ class System {
      * sync sleep
      * @returns {Promise<any>}
      */
-    sleep() {
-        return new Promise(resolve => setTimeout(resolve, 1000));
+    sleep(i = 1000) {
+        return new Promise(resolve => setTimeout(resolve, i));
     }
 
     /**
